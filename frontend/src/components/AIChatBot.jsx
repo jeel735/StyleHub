@@ -1,109 +1,166 @@
-import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useRef, useEffect } from "react";
+import axios from "axios";
 
 const AIChatBot = () => {
-    const [input, setInput] = useState("");
-    const [messages, setMessages] = useState([
-        { role: 'bot', text: "Welcome to StyleHub! Looking for something specific?" }
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    {
+      role: "bot",
+      text: "👋 Hi! I'm StyleBot, your personal fashion assistant. Ask me about products, outfits, or store policies!",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+
+    const userMsg = { role: "user", text: trimmed };
+    const updatedMessages = [...messages, userMsg];
+
+    setMessages(updatedMessages);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const history = updatedMessages.slice(1, -1);
+
+      const { data } = await axios.post("/api/chatbot/chat", {
+        message: trimmed,
+        history,
+      });
+
+      setMessages((prev) => [...prev, { role: "bot", text: data.reply }]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "bot",
+          text: "⚠️ Sorry, I'm having trouble responding right now. Please try again in a moment.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const clearChat = () => {
+    setMessages([
+      {
+        role: "bot",
+        text: "👋 Hi! I'm StyleBot, your personal fashion assistant. Ask me about products, outfits, or store policies!",
+      },
     ]);
-    const [loading, setLoading] = useState(false);
-    const chatEndRef = useRef(null);
+  };
 
-    // Auto-scroll to bottom when new messages arrive
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+  return (
+    <>
+      {/* Floating Toggle Button */}
+      <button
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="fixed bottom-6 right-6 z-50 bg-black text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl hover:bg-gray-800 transition-all duration-300"
+        title="Chat with StyleBot"
+      >
+        {isOpen ? "✕" : "🛍️"}
+      </button>
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+      {/* Chat Window */}
+      {isOpen && (
+        <div className="fixed bottom-24 right-6 z-50 w-[360px] max-h-[560px] bg-white rounded-2xl shadow-2xl flex flex-col border border-gray-200 overflow-hidden">
 
-        const userMsg = { role: 'user', text: input };
-        setMessages(prev => [...prev, userMsg]);
-        setInput("");
-        setLoading(true);
-
-        try {
-            // Adjust the URL to your actual backend port (usually 5000 or 8080)
-            const { data } = await axios.post('http://localhost:4000/api/chat/ai-search', { 
-                message: input 
-            });
-
-            const botMsg = { 
-                role: 'bot', 
-                text: data.reply, 
-                products: data.products 
-            };
-            setMessages(prev => [...prev, botMsg]);
-        } catch (err) {
-            setMessages(prev => [...prev, { 
-                role: 'bot', 
-                text: "My connection to the store is a bit weak. Check the console for details!" 
-            }]);
-            console.error("Chat Error:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div style={styles.container}>
-            <div style={styles.header}>✨ StyleHub AI Assistant</div>
-            
-            <div style={styles.chatWindow}>
-                {messages.map((m, i) => (
-                    <div key={i} style={{ ...styles.msgRow, justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                        <div style={{ ...styles.bubble, backgroundColor: m.role === 'user' ? '#333' : '#f1f1f1', color: m.role === 'user' ? '#fff' : '#000' }}>
-                            {m.text}
-                        </div>
-                        
-                        {/* Render Products if they exist in the bot response */}
-                        {m.products && m.products.length > 0 && (
-                            <div style={styles.productList}>
-                                {m.products.map(p => (
-                                    <div key={p._id} style={styles.card}>
-                                        <img src={p.image} alt={p.name} style={styles.cardImg} />
-                                        <div style={styles.cardTitle}>{p.name}</div>
-                                        <div style={styles.cardPrice}>${p.price}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ))}
-                {loading && <div style={styles.loader}>Assistant is typing...</div>}
-                <div ref={chatEndRef} />
+          {/* Header */}
+          <div className="bg-black text-white px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🛍️</span>
+              <div>
+                <p className="font-semibold text-sm">StyleBot</p>
+                <p className="text-xs text-gray-300">Fashion Assistant • Online</p>
+              </div>
             </div>
+            <button
+              onClick={clearChat}
+              className="text-xs text-gray-400 hover:text-white transition"
+              title="Clear chat"
+            >
+              Clear
+            </button>
+          </div>
 
-            <div style={styles.inputArea}>
-                <input 
-                    style={styles.input}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask about shoes, jackets..."
-                />
-                <button onClick={handleSend} style={styles.btn}>Send</button>
-            </div>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50 max-h-[400px]">
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                {msg.role === "bot" && (
+                  <span className="text-lg mr-2 self-end">🤖</span>
+                )}
+                <div
+                  className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === "user"
+                      ? "bg-black text-white rounded-br-sm"
+                      : "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm"
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+
+            {/* Typing Indicator */}
+            {loading && (
+              <div className="flex justify-start items-end gap-2">
+                <span className="text-lg">🤖</span>
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+                  <div className="flex gap-1 items-center">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]"></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input Area */}
+          <div className="px-3 py-3 bg-white border-t border-gray-100 flex items-center gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about styles, products..."
+              className="flex-1 text-sm border border-gray-200 rounded-full px-4 py-2 outline-none focus:border-black transition"
+              disabled={loading}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="bg-black text-white text-sm px-4 py-2 rounded-full hover:bg-gray-800 disabled:opacity-40 transition"
+            >
+              Send
+            </button>
+          </div>
         </div>
-    );
-};
-
-// Simple inline styles for a clean look
-const styles = {
-    container: { position: 'fixed', bottom: '20px', right: '20px', width: '350px', height: '500px', backgroundColor: '#fff', borderRadius: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', zIndex: 1000, border: '1px solid #eee', overflow: 'hidden', fontFamily: 'sans-serif' },
-    header: { padding: '15px', backgroundColor: '#333', color: '#fff', fontWeight: 'bold', textAlign: 'center' },
-    chatWindow: { flex: 1, overflowY: 'auto', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' },
-    msgRow: { display: 'flex', flexDirection: 'column', maxWidth: '85%' },
-    bubble: { padding: '10px 15px', borderRadius: '15px', fontSize: '14px', lineHeight: '1.4' },
-    productList: { display: 'flex', gap: '10px', marginTop: '10px', overflowX: 'auto', paddingBottom: '10px', width: '300px' },
-    card: { minWidth: '120px', border: '1px solid #ddd', borderRadius: '8px', padding: '5px', textAlign: 'center', backgroundColor: '#fff' },
-    cardImg: { width: '100%', height: '80px', objectFit: 'cover', borderRadius: '5px' },
-    cardTitle: { fontSize: '11px', margin: '5px 0', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-    cardPrice: { fontSize: '12px', color: '#666' },
-    inputArea: { display: 'flex', padding: '10px', borderTop: '1px solid #eee' },
-    input: { flex: 1, border: 'none', outline: 'none', padding: '5px' },
-    btn: { backgroundColor: '#333', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' },
-    loader: { fontSize: '12px', color: '#999', fontStyle: 'italic' }
+      )}
+    </>
+  );
 };
 
 export default AIChatBot;
